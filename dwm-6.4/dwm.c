@@ -821,7 +821,7 @@ drawbar(Monitor *m)
                 } else {
 		        drw_text(drw, x, 0, w, bh, wdelta + lrpad / 2, tags[i], urg & 1 << i);
                 }
-                if ((occ & 1 << i) && m->alttag){
+                if ((occ & 1 << i) && selmon->alttag){
                         drw_rect(drw, x + boxw, 0, w - ( 2 * boxw + 1), boxw, m == selmon && selmon->sel && selmon->sel->tags & 1 << i, urg & 1 << i);
                 }
 		x += w;
@@ -2037,8 +2037,11 @@ tile(Monitor *m)
 void
 togglealttag(const Arg *arg)
 {
+        Monitor *m;
    	selmon->alttag = !selmon->alttag;
-        drawbar(selmon);
+        for (m = mons; m; m = m->next){
+            drawbar(m);
+        }
 }
 
 void
