@@ -129,6 +129,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	int showbar;
 	int topbar;
+        int hidsel;
 	Client *clients;
 	Client *sel;
 	Client *stack;
@@ -176,7 +177,9 @@ static void expose(XEvent *e);
 static void focus(Client *c);
 static void focusin(XEvent *e);
 static void focusmon(const Arg *arg);
-static void focusstack(const Arg *arg);
+static void focusstackvis(const Arg *arg);
+static void focusstackhid(const Arg *arg);
+static void focusstack(int inc, int vis);
 static Atom getatomprop(Client *c, Atom prop);
 static int getdwmblockspid();
 static int getrootptr(int *x, int *y);
@@ -184,8 +187,8 @@ static long getstate(Window w);
 static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
 static void grabbuttons(Client *c, int focused);
 static void grabkeys(void);
-static void hide(Client *c);
-//static void hidewin(Client *c);
+static void hide(const Arg *arg);
+static void hidewin(Client *c);
 static void incnmaster(const Arg *arg);
 static void keypress(XEvent *e);
 static void keyrelease(XEvent *e);
@@ -219,7 +222,8 @@ static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setup(void);
 static void seturgent(Client *c, int urg);
-static void show(Client *c);
+static void showall(const Arg *arg);
+static void showwin(Client *c);
 static void showhide(Client *c);
 static void sigchld(int unused);
 static void sigdwmblocks(const Arg *arg);
@@ -232,6 +236,7 @@ static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
+static void togglewin(const Arg *arg);
 static void togglewin(const Arg *arg);
 static void unfocus(Client *c, int setfocus);
 static void unmanage(Client *c, int destroyed);
@@ -787,7 +792,6 @@ void
 drawbar(Monitor *m)
 {
 	int x, w, wdelta, tw = 0, n = 0, scm;
-        int boxs = drw->fonts->h / 9; //even though this does nothing, having the warning is a good way to see if dwm actually compiled
         int boxw = drw->fonts->h / 6 + 1;
 	unsigned int i, occ = 0, urg = 0;
 	Client *c;
@@ -911,6 +915,12 @@ focus(Client *c)
 		for (c = selmon->stack; c && (!ISVISIBLE(c) || HIDDEN(c)); c = c->snext);
 	if (selmon->sel && selmon->sel != c) {
 		unfocus(selmon->sel, 0);
+                if (selmon->hidsel) {
+			hidewin(selmon->sel);
+			if (c)
+			        arrange(c->mon);
+			selmon->hidsel = 0;
+		}
         }
 	if (c) {
 		if (c->mon != selmon)
@@ -955,28 +965,52 @@ focusmon(const Arg *arg)
 }
 
 void
-focusstack(const Arg *arg)
+focusstackvis(const Arg *arg) {
+	focusstack(arg->i, 0);
+}
+
+void
+focusstackhid(const Arg *arg) {
+	focusstack(arg->i, 1);
+}
+
+void
+focusstack(int inc, int hid)
 {
 	Client *c = NULL, *i;
 
-	if (!selmon->sel || (selmon->sel->isfullscreen && lockfullscreen))
+	if ((!selmon->sel && !hid) || (selmon->sel && selmon->sel->isfullscreen && lockfullscreen)) 
 		return;
-	if (arg->i > 0) {
-		for (c = selmon->sel->next; c && !ISVISIBLE(c); c = c->next);
-		if (!c)
-			for (c = selmon->clients; c && !ISVISIBLE(c); c = c->next);
+	if (!selmon->clients)
+		return;
+	if (inc > 0) {
+		if (selmon->sel)
+			for (c = selmon->sel->next;
+					c && (!ISVISIBLE(c) || (!hid && HIDDEN(c)));
+					c = c->next);
+ 		if (!c)
+			for (c = selmon->clients;
+					c && (!ISVISIBLE(c) || (!hid && HIDDEN(c)));
+					c = c->next);
 	} else {
-		for (i = selmon->clients; i != selmon->sel; i = i->next)
-			if (ISVISIBLE(i))
-				c = i;
+		if (selmon->sel) {
+			for (i = selmon->clients; i != selmon->sel; i = i->next)
+				if (ISVISIBLE(i) && !(!hid && HIDDEN(i)))
+					c = i;
+		} else
+			c = selmon->clients;
 		if (!c)
 			for (; i; i = i->next)
-				if (ISVISIBLE(i))
+				if (ISVISIBLE(i) && !(!hid && HIDDEN(i)))
 					c = i;
 	}
 	if (c) {
 		focus(c);
 		restack(selmon);
+                if (HIDDEN(c)) {
+			showwin(c);
+			c->mon->hidsel = 1;
+		}
 	}
 }
 
@@ -1099,7 +1133,15 @@ grabkeys(void)
 }
 
 void
-hide(Client *c) {
+hide(const Arg *arg)
+{
+	hidewin(selmon->sel);
+	focus(NULL);
+	arrange(selmon);
+}
+
+void
+hidewin(Client *c) {
 	if (!c || HIDDEN(c))
 		return;
 
@@ -1118,11 +1160,7 @@ hide(Client *c) {
 	XSelectInput(dpy, root, ra.your_event_mask);
 	XSelectInput(dpy, w, ca.your_event_mask);
 	XUngrabServer(dpy);
-
-	focus(c->snext);
-	arrange(c->mon);
 }
-
 
 void
 incnmaster(const Arg *arg)
@@ -1491,7 +1529,7 @@ quit(const Arg *arg)
 	for (m = mons; m; m = m->next) {
 		if (m) {
 			for (c = m->stack; c; c = c->next)
-				if (c && HIDDEN(c)) show(c);
+				if (c && HIDDEN(c)) showwin(c);
 		}
 	}
 	running = 0;
@@ -1897,17 +1935,6 @@ seturgent(Client *c, int urg)
 }
 
 void
-show(Client *c)
-{
-	if (!c || !HIDDEN(c))
-		return;
-
-	XMapWindow(dpy, c->win);
-	setclientstate(c, NormalState);
-	arrange(c->mon);
-}
-/*
-void
 showall(const Arg *arg) 
 {
 	Client *c = NULL;
@@ -1923,7 +1950,7 @@ showall(const Arg *arg)
 	}
 	restack(selmon);
 }
-*/
+
 void
 showwin(Client *c)
 {
@@ -2098,13 +2125,13 @@ void
 togglewin(const Arg *arg)
 {
 	Client *c = (Client*)arg->v;
-	if(!c)
-                return;
-        if (c == selmon->sel)
-		hide(c);
-	else {
+        if (c == selmon->sel){
+		hidewin(c);
+                focus(NULL);
+                arrange(c->mon);
+        } else {
 		if (HIDDEN(c))
-			show(c);
+			showwin(c);
 		focus(c);
 		restack(selmon);
 	}
