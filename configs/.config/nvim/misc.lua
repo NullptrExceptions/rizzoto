@@ -1,10 +1,30 @@
--- bufferline
+-- Diagnostics
+vim.diagnostic.config({
+    virtual_text = false,
+    signs = true,
+})
+
+vim.cmd [[autocmd! CursorHold,CursorHoldI * lua vim.diagnostic.open_float(nil, {focus=false})]]
+
+local signs = {
+    Error = "",
+    Warn = "",
+    Hint = "",
+    Info = ""
+}
+
+for type, sign in pairs(signs) do
+    local hl = "DiagnosticSign" .. type
+    vim.fn.sign_define(hl, {text = sign, texthl = hl, numhl = hl})
+end
+
+-- Bufferline
 require("bufferline").setup{}
 
---feline
+-- Feline
 require("feline").setup{}
 
---treesitter
+-- Treesitter
 require'nvim-treesitter.configs'.setup{
     ensure_installed = { "c", "cpp", "lua", "rust", "javascript", "json", "html", "vim", "typescript", "tsx", "python" },
     highlight = {
@@ -13,7 +33,7 @@ require'nvim-treesitter.configs'.setup{
     }
 }
 
---toggleterm
+-- Toggleterm
 require("toggleterm").setup{
     size=10,
     open_mapping = [[<F4>]]
@@ -30,5 +50,5 @@ end
 
 vim.cmd('autocmd! TermOpen term://* lua set_terminal_keymaps()')
 
---nvim-tree
+-- Nvim-tree
 require("nvim-tree").setup{}
