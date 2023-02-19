@@ -1,11 +1,13 @@
-call plug#begin()                                   
+call plug#begin()
     "Completion
     Plug 'neovim/nvim-lspconfig'
     Plug 'neoclide/coc.nvim', {'branch': 'release'}
-    Plug 'lambdalisue/vim-cython-syntax'
     Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
-    Plug 'rafamadriz/friendly-snippets'
+    Plug 'lithammer/nvim-diagnosticls'
+    Plug 'lambdalisue/vim-cython-syntax'
     Plug 'NullptrExceptions/cython-snips/'
+    Plug 'rafamadriz/friendly-snippets'
+    Plug 'sudar/vim-arduino-syntax'
 
     "Theme + Asthetics
     Plug 'sainnhe/gruvbox-material'
@@ -47,9 +49,19 @@ nnoremap <F5> :NvimTreeToggle<CR>
 "Tabs
 set tabstop=8 softtabstop=0 expandtab shiftwidth=4 smarttab
 
-"Misc
-:set number
-:set mouse=a
+"Line numbers and diagnostics
+set number
+set numberwidth=1
+set signcolumn=no
+
+"Mouse
+set mouse=a
+
+"Time between when typing stops and when things execute, increase to slightly increase performance
+set updatetime=500
+
+"Remove the tildes at the bottom of the screen in the empty space 
+highlight! EndOfBuffer ctermbg=bg ctermfg=bg guibg=bg guifg=bg
 
 "Completion key
 inoremap <expr> <CR> pumvisible() ? "\<C-Y>" : "\<CR>"
@@ -58,4 +70,4 @@ inoremap <expr> <CR> pumvisible() ? "\<C-Y>" : "\<CR>"
 luafile $HOME/.config/nvim/misc.lua
 
 "Lsp server configs
-luafile $HOME/.config/nvim/lsp_config.lua
+luafile $HOME/.config/nvim/lsp.lua
